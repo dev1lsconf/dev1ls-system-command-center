@@ -1,0 +1,21 @@
+{
+  "port": 8090,
+  "web_port": 8001,
+  "auth_user": "dev1ls",
+  "auth_password": "",
+  "rate_limit_requests": 60,
+  "rate_limit_window": 60,
+  "geoip_ttl": 3600,
+  "geoip_max_lookups": 30,
+  "cpu_delta_interval": 5,
+  "refresh_interval": 3000,
+  "critical_services": [
+    "docker",
+    "tailscale",
+    "fail2ban",
+    "sshd",
+    "nftables"
+  ],
+  "log_lines": 200,
+  "version": "2.0"
+}

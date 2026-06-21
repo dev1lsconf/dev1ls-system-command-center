@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.log
+*.debug
+logcache.log
+$HOME/
+*index.html.*bak*
+modelo.html
+static_panel.html
+pending_blocks.json
+web-panel.log
+__pycache__/
+*.pyc
+portfolio/

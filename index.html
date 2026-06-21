@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dev1ls System Command Center v2.0</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#00ff41;font-family:"Courier New",monospace;min-height:100vh}
+.header{padding:18px 28px;border-bottom:1px solid #1b2430;background:#0d1117;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:2rem;color:#00ff41;text-shadow:0 0 10px #008f11}
+.header h1::before{content:"root@dev1ls:~$ ";color:#008f11;font-size:1.2rem}
+.status{display:flex;gap:15px;align-items:center}
+.status-dot{width:10px;height:10px;border-radius:50%;background:#00ff41;box-shadow:0 0 8px #00ff41;animation:pulse 1.5s infinite}
+.status-text{font-size:1.2rem;color:#00ff41}
+.last-update{font-size:1rem;color:#008f11}
+.dashboard{padding:15px;display:grid;grid-template-columns:repeat(12,1fr);gap:12px;max-width:1920px;margin:0 auto}
+.card{background:#0d1117;border:1px solid #1b2430;border-radius:4px;padding:18px}
+.card-title{font-size:1.1rem;font-weight:700;color:#00ff41;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1b2430;padding-bottom:8px}
+.card-title::before{content:">";color:#39ff14;margin-right:8px}
+.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+.metric-value{font-size:3rem;font-weight:700;color:#39ff14;text-shadow:0 0 10px rgba(0,255,65,0.3)}
+.metric-value.small{font-size:1.8rem}
+.metric-label{font-size:0.95rem;color:#008f11;text-transform:uppercase;letter-spacing:1px}
+.mini-stats{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.mini-stat{background:rgba(0,255,65,0.03);border:1px solid #1b2430;border-radius:3px;padding:8px 12px;flex:1;min-width:80px}
+.mini-stat .value{font-size:1.4rem;color:#00ff41;font-weight:700}
+.mini-stat .label{font-size:0.8rem;color:#008f11;text-transform:uppercase}
+.progress-bar{width:100%;height:8px;background:rgba(0,255,65,0.05);border:1px solid #1b2430;margin-top:10px}
+.progress-fill{height:100%;transition:width 1s ease}
+.progress-fill.green{background:#00ff41}.progress-fill.yellow{background:#f0e130}.progress-fill.red{background:#ff0040}
+.conn-list{max-height:200px;overflow-y:auto;font-size:0.85rem}
+.conn-item{padding:4px 0;border-bottom:1px solid rgba(0,255,65,0.05)}
+.fw-badge{padding:4px 10px;font-size:0.9rem;border:1px solid;font-weight:700}
+.fw-badge.active{background:rgba(0,255,65,0.1);color:#00ff41;border-color:#008f11}
+.svc-badge{padding:2px 8px;font-size:0.8rem;border:1px solid;margin-right:4px;margin-bottom:4px;display:inline-block}
+.svc-badge.active{background:rgba(0,255,65,0.1);color:#00ff41;border-color:#008f11}
+.svc-badge.inactive{background:rgba(255,0,64,0.1);color:#ff0040;border-color:#ff0040}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>dev1ls System Command Center</h1>
+  <div class="status">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">LOADING</span>
+    <span class="last-update" id="lastUpdate">--</span>
+  </div>
+</div>
+<div class="dashboard">
+  <div class="card col-3">
+    <div class="card-title">SYS_INFO</div>
+    <div class="metric-value small" id="hostname">--</div>
+    <div class="metric-label">Arch Linux</div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="value" id="uptimeVal">--</div><div class="label">Uptime</div></div>
+      <div class="mini-stat"><div class="value" id="loadVal">--</div><div class="label">Load</div></div>
+    </div>
+  </div>
+  <div class="card col-3">
+    <div class="card-title">CPU</div>
+    <div class="metric-value" id="cpuUsage">--%</div>
+    <div class="metric-label" id="cpuModel">--</div>
+    <div class="progress-bar"><div class="progress-fill green" id="cpuBar" style="width:0%"></div></div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="value" id="cpuCores">--</div><div class="label">Cores</div></div>
+      <div class="mini-stat"><div class="value" id="cpuTemp">--</div><div class="label">Temp</div></div>
+    </div>
+  </div>
+  <div class="card col-3">
+    <div class="card-title">MEMORY</div>
+    <div class="metric-value" id="memPercent">--%</div>
+    <div class="metric-label" id="memDetail">-- / -- MB</div>
+    <div class="progress-bar"><div class="progress-fill green" id="memBar" style="width:0%"></div></div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="value" id="memUsed">--</div><div class="label">Used</div></div>
+      <div class="mini-stat"><div class="value" id="memAvail">--</div><div class="label">Free</div></div>
+    </div>
+  </div>
+  <div class="card col-3">
+    <div class="card-title">DISK</div>
+    <div class="metric-value" id="diskPercent">--%</div>
+    <div class="metric-label" id="diskDetail">--</div>
+    <div class="progress-bar"><div class="progress-fill green" id="diskBar" style="width:0%"></div></div>
+  </div>
+  <div class="card col-6">
+    <div class="card-title">NETWORK</div>
+    <div class="mini-stats" id="netInterfaces"></div>
+    <div style="margin-top:12px"><div class="metric-label">// CONNECTIONS</div><div class="conn-list" id="connList">loading...</div></div>
+  </div>
+  <div class="card col-6">
+    <div class="card-title">FIREWALL</div>
+    <div style="margin-bottom:10px"><span class="fw-badge active" id="fwStatus">--</span> <span class="metric-label" id="fwRules">-- rules</span></div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="value" id="fwDrops" style="color:#ff0040">--</div><div class="label">Drops</div></div>
+      <div class="mini-stat"><div class="value" id="fwRejects" style="color:#f0e130">--</div><div class="label">Rejects</div></div>
+    </div>
+    <div id="fwChains" style="font-size:0.8rem;color:#008f11;margin-top:8px"></div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">SERVICES</div>
+    <div id="svcList">loading...</div>
+    <div style="margin-top:12px"><div class="metric-label">// FAIL2BAN</div><div id="f2bInfo" style="font-size:0.85rem;margin-top:4px"></div></div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">ALERTS</div>
+    <div id="alertsList" class="conn-list">loading...</div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">PROCESSES</div>
+    <div id="procList" class="conn-list">loading...</div>
+  </div>
+  <div class="card col-8">
+    <div class="card-title">CONNECTED IPS</div>
+    <div id="connGeoTable" style="max-height:300px;overflow-y:auto;font-size:0.85rem">loading...</div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">BANNED IPS</div>
+    <div id="bannedList" style="max-height:300px;overflow-y:auto;font-size:0.85rem">loading...</div>
+  </div>
+  <div class="card col-12">
+    <div class="card-title">GEO MAP</div>
+    <div id="geoMap" style="height:400px;border-radius:4px"></div>
+  </div>
+</div>
+
+<script>
+var API_URL="";
+
+function formatBytes(b){if(!b||b===0)return"0 B";var k=1024,sizes=["B","KB","MB","GB"];var i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+" "+sizes[i]}
+function getColor(p){return p<50?"green":p<80?"yellow":"red"}
+
+async function loadData(){
+  try{
+    var r=await fetch("/api/metrics");
+    if(!r.ok){document.getElementById("statusText").textContent="ERR "+r.status;return;}
+    var d=await r.json();
+    document.getElementById("statusDot").style.background="#00ff41";
+    document.getElementById("statusText").textContent="ONLINE";
+    document.getElementById("lastUpdate").textContent="["+new Date().toLocaleTimeString()+"]";
+    document.getElementById("hostname").textContent=d.hostname||"--";
+    var up=d.uptime||{};
+    document.getElementById("uptimeVal").textContent=(up.days||0)+"d "+(up.hours||0)+"h "+(up.minutes||0)+"m";
+    document.getElementById("loadVal").textContent=d.cpu&&d.cpu.load_1m||"--";
+    var cpu=d.cpu||{};
+    document.getElementById("cpuUsage").textContent=(cpu.usage_percent||0)+"%";
+    document.getElementById("cpuModel").textContent=(cpu.model||"--").substring(0,30);
+    document.getElementById("cpuCores").textContent=cpu.cores||"--";
+    document.getElementById("cpuTemp").textContent=(cpu.temperature_c!=null)?cpu.temperature_c+"C":"N/A";
+    document.getElementById("cpuBar").style.width=(cpu.usage_percent||0)+"%";
+    document.getElementById("cpuBar").className="progress-fill "+getColor(cpu.usage_percent||0);
+    var mem=d.memory||{};
+    document.getElementById("memPercent").textContent=(mem.percent||0)+"%";
+    document.getElementById("memDetail").textContent=(mem.used_mb||0)+" / "+(mem.total_mb||0)+" MB";
+    document.getElementById("memUsed").textContent=mem.used_mb||"--";
+    document.getElementById("memAvail").textContent=mem.available_mb||"--";
+    document.getElementById("memBar").style.width=(mem.percent||0)+"%";
+    document.getElementById("memBar").className="progress-fill "+getColor(mem.percent||0);
+    var disks=d.disk||[];
+    if(disks.length>0){var dk=disks[0];document.getElementById("diskPercent").textContent=(dk.percent||"--")+"%";document.getElementById("diskDetail").textContent=(dk.used||"--")+" / "+(dk.size||"--");document.getElementById("diskBar").style.width=(dk.percent||0)+"%";document.getElementById("diskBar").className="progress-fill "+getColor(dk.percent||0)}
+    var net=d.network||{};
+    var ifaces=net.interfaces||[];
+    var nh="";
+    for(var i=0;i<ifaces.length;i++){var iface=ifaces[i];nh+='<div class="mini-stat"><div class="value" style="font-size:1rem">'+iface.name+'</div><div class="label">'+iface.address+" ["+iface.status+"]</div><div class=\"label\" style=\"margin-top:4px\">↓"+formatBytes(iface.rx_bytes)+" ↑"+formatBytes(iface.tx_bytes)+"</div></div>"}
+    document.getElementById("netInterfaces").innerHTML=nh||'<div class="metric-label">No interfaces</div>';
+    var conns=d.connections||{};
+    var established=conns.established||[];
+    var cl="";
+    for(var i=0;i<Math.min(established.length,30);i++){cl+='<div class="conn-item">'+established[i].peer+"</div>"}
+    document.getElementById("connList").innerHTML=cl||'<div class="metric-label">No connections</div>';
+    var fw=d.firewall||{};
+    document.getElementById("fwStatus").textContent=fw.enabled?"ACTIVE":"INACTIVE";
+    document.getElementById("fwRules").textContent=(fw.rules_count||0)+" rules";
+    document.getElementById("fwDrops").textContent=(fw.total_drops||0)+(fw.total_drop_bytes?" ("+formatBytes(fw.total_drop_bytes)+")":"");
+    document.getElementById("fwRejects").textContent=fw.total_rejects||0;
+    var chains=fw.chains||[];
+    var ch="";
+    for(var i=0;i<chains.length;i++){ch+='<span style="margin-right:10px"><b>'+chains[i].name+'</b> ['+(chains[i].policy||"accept")+"]</span>"}
+    document.getElementById("fwChains").innerHTML=ch||"--";
+    var svcs=d.services||[];
+    var sl="";
+    for(var i=0;i<svcs.length;i++){sl+='<span class="svc-badge '+(svcs[i].active?"active":"inactive")+'">'+svcs[i].name+": "+svcs[i].status+"</span>"}
+    document.getElementById("svcList").innerHTML=sl||"--";
+    var f2b=d.fail2ban||{};
+    var f2bInfo=(f2b.enabled?"ACTIVE":"INACTIVE")+" | banned: "+(f2b.banned_total||0)+" | failed: "+(f2b.failed_total||0);
+    if(f2b.banned_ips&&f2b.banned_ips.length>0){f2bInfo+="<br>IPs: "+f2b.banned_ips.join(", ")}
+    document.getElementById("f2bInfo").innerHTML=f2bInfo;
+    var procs=d.processes||[];
+    var pl="";
+    for(var i=0;i<Math.min(procs.length,15);i++){pl+='<div class="conn-item"><b>'+procs[i].command+'</b><br><span style="color:#008f11">pid '+procs[i].pid+" · "+procs[i].cpu+"% · "+procs[i].mem+"%</span></div>"}
+    document.getElementById("procList").innerHTML=pl||"--";
+    loadConnections(d);
+    loadBanned(d);
+    updateMap(d);
+  }catch(e){
+    document.getElementById("statusDot").style.background="#ff0040";
+    document.getElementById("statusText").textContent="ERROR";
+    document.getElementById("lastUpdate").textContent="["+e.message+"]";
+  }
+}
+
+async function loadAlerts(){
+  try{
+    var r=await fetch("/api/logs?lines=50");
+    var j=await r.json();
+    var alerts=j.alerts||[];
+    var al="";
+    for(var i=Math.max(0,alerts.length-15);i<alerts.length;i++){
+      var cls="info";
+      var l=alerts[i].line.toLowerCase();
+      if(l.indexOf("fail")>=0||l.indexOf("denied")>=0)cls="color:#ff0040";
+      else if(l.indexOf("error")>=0||l.indexOf("critical")>=0)cls="color:#ff0040";
+      else if(l.indexOf("drop")>=0||l.indexOf("reject")>=0)cls="color:#f0e130";
+      al+='<div class="conn-item" style="'+cls+'"><b>'+alerts[i].source+"</b> — "+alerts[i].line+"</div>";
+    }
+    document.getElementById("alertsList").innerHTML=al||'<div class="conn-item">No alerts</div>';
+  }catch(e){}
+}
+
+function loadConnections(d){
+  var mapped=d.connections&&d.connections.mapped||[];
+  var priv=d.connections&&d.connections.private_sample||[];
+  var html="";
+  if(mapped.length===0&&priv.length===0){
+    html='<div class="metric-label">No connections</div>';
+  }else{
+    html='<table style="width:100%;border-collapse:collapse">';
+    html+='<tr style="border-bottom:1px solid #1b2430;color:#008f11;text-transform:uppercase;font-size:0.75rem">';
+    html+='<th style="text-align:left;padding:4px">IP</th><th style="text-align:left;padding:4px">Location</th><th style="text-align:left;padding:4px">ISP</th><th style="text-align:left;padding:4px">Peer</th><th style="text-align:left;padding:4px">SSH</th></tr>';
+    for(var i=0;i<mapped.length;i++){
+      var c=mapped[i];
+      var isSsh=c.is_ssh?'SI':'';
+      var rowStyle=c.is_ssh?'color:#ff0040;background:rgba(255,0,64,0.08)':'';
+      var loc=[c.city,c.country].filter(Boolean).join(", ")||"--";
+      html+='<tr style="border-bottom:1px solid rgba(0,255,65,0.05);'+rowStyle+'">';
+      html+='<td style="padding:4px"><b>'+c.ip+'</b></td>';
+      html+='<td style="padding:4px">'+loc+'</td>';
+      html+='<td style="padding:4px;font-size:0.8rem">'+(c.isp||"--")+'</td>';
+      html+='<td style="padding:4px">'+c.peer+'</td>';
+      html+='<td style="padding:4px;font-weight:700">'+(isSsh?'[SSH]':'')+'</td></tr>';
+    }
+    if(priv.length>0){
+      html+='<tr style="border-bottom:1px solid rgba(0,255,65,0.05);color:#008f11">';
+      html+='<td style="padding:4px" colspan="5"><i>'+priv.length+' private connection(s)</i></td></tr>';
+    }
+    html+='</table>';
+  }
+  document.getElementById("connGeoTable").innerHTML=html;
+}
+
+function loadBanned(d){
+  var f2b=d.fail2ban||{};
+  var banned=f2b.banned_ips||[];
+  var jails=f2b.jails||[];
+  var html="";
+  if(banned.length===0){
+    html='<div class="metric-label" style="color:#00ff41">No banned IPs</div>';
+  }else{
+    for(var i=0;i<banned.length;i++){
+      var jailName="";
+      for(var j=0;j<jails.length;j++){
+        if(jails[j].banned_ips&&jails[j].banned_ips.indexOf(banned[i])>=0){
+          jailName=jails[j].name;
+          break;
+        }
+      }
+      var label=jailName?'['+jailName+']':'';
+      html+='<div class="conn-item" style="color:#ff0040;border-color:rgba(255,0,64,0.2)">';
+      html+='<b>'+banned[i]+'</b> <span style="color:#008f11">'+label+'</span></div>';
+    }
+  }
+  document.getElementById("bannedList").innerHTML=html;
+}
+
+var mapInit=false,map,markers=[];
+
+function initMap(){
+  if(mapInit)return;
+  mapInit=true;
+  map=L.map("geoMap",{zoomControl:false,attributionControl:false}).setView([20,0],2);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+    maxZoom:19,
+  }).addTo(map);
+}
+
+function updateMap(d){
+  initMap();
+  for(var i=0;i<markers.length;i++)map.removeLayer(markers[i]);
+  markers=[];
+  var mapped=d.connections&&d.connections.mapped||[];
+  var priv=d.connections&&d.connections.private_sample||[];
+  var bounds=[];
+  for(var i=0;i<mapped.length;i++){
+    var c=mapped[i];
+    if(c.lat===0&&c.lon===0)continue;
+    var color=c.is_ssh?"#ff0040":"#00ff41";
+    var loc=[c.city,c.country].filter(Boolean).join(", ")||"Unknown";
+    var m=L.circleMarker([c.lat,c.lon],{
+      radius:7,fillColor:color,color:color,weight:2,fillOpacity:0.7,opacity:1
+    }).addTo(map);
+    m.bindPopup(
+      "<b>"+c.ip+"</b><br>"+
+      (c.is_ssh?'<span style="color:#ff0040">[SSH]</span><br>':'')+
+      loc+"<br>"+(c.isp||"")+"<br><span style='font-size:0.8rem'>"+c.peer+"</span>"
+    );
+    markers.push(m);
+    bounds.push([c.lat,c.lon]);
+  }
+  if(bounds.length>0){
+    map.fitBounds(bounds,{padding:[30,30],maxZoom:10});
+  }else{
+    map.setView([20,0],2);
+  }
+}
+
+loadData();
+loadAlerts();
+setInterval(loadData,3000);
+setInterval(loadAlerts,10000);
+</script>
+</body>
+</html>
