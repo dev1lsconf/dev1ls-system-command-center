@@ -519,10 +519,12 @@ def get_logs(lines=None):
     keywords = ["fail","failed","error","denied","invalid","panic","segfault","reject","drop","authentication","unauthorized","critical"]
     noise_patterns = [
         ["sudo", "fail2ban-client"],
-        ["sudo", "COMMAND="],
+        ["sudo", "command="],
         ["pam_systemd", "sudo"],
         ["sudo", "pam_unix", "session"],
-        ["nft", "list ruleset"],
+        ["sudo", "nft", "list"],
+        ["sudo", "systemctl", "is-active"],
+        ["sudo", "systemctl", "is-enabled"],
     ]
     matches = []
     recent = []
@@ -549,6 +551,142 @@ def get_logs(lines=None):
     logs["recent_lines"] = [f"{s} | {l}" for s, l in recent[-400:]]
     return logs
 
+# ── History ring buffer ──────────────────────────────────────────────
+HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
+HISTORY_MAX = 300
+HISTORY_INTERVAL = 10
+_history_lock = threading.Lock()
+_history = []
+
+def _load_history():
+    global _history
+    try:
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE) as f:
+                _history = json.load(f)[-HISTORY_MAX:]
+    except:
+        _history = []
+
+def _save_history():
+    try:
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(_history[-HISTORY_MAX:], f)
+    except:
+        pass
+
+def _record_snapshot():
+    global _history
+    try:
+        cpu_p = _cpu_usage
+
+        with open("/proc/meminfo") as f:
+            mem_lines = f.readlines()
+        mem = {}
+        for l in mem_lines:
+            parts = l.split(":")
+            if len(parts) == 2:
+                mem[parts[0].strip()] = int(parts[1].strip().split()[0])
+        mem_total = mem.get("MemTotal", 0)
+        mem_avail = mem.get("MemAvailable", 0)
+        mem_pct = round((mem_total - mem_avail) / mem_total * 100, 1) if mem_total else 0
+
+        disk_out = run_cmd("df / 2>/dev/null | tail -1")
+        disk_pct = 0
+        if disk_out:
+            parts = disk_out.split()
+            if len(parts) >= 5:
+                disk_pct = int(parts[4].replace("%", ""))
+
+        net_rx = net_tx = 0
+        for iface_dir in os.listdir("/sys/class/net"):
+            if iface_dir == "lo": continue
+            rx_path = f"/sys/class/net/{iface_dir}/statistics/rx_bytes"
+            tx_path = f"/sys/class/net/{iface_dir}/statistics/tx_bytes"
+            if os.path.exists(rx_path):
+                with open(rx_path) as f: net_rx += int(f.read().strip())
+            if os.path.exists(tx_path):
+                with open(tx_path) as f: net_tx += int(f.read().strip())
+
+        ts = time.time()
+        with _history_lock:
+            _history.append({
+                "t": ts, "cpu": cpu_p, "mem": mem_pct, "disk": disk_pct,
+                "net_rx": net_rx, "net_tx": net_tx
+            })
+            if len(_history) > HISTORY_MAX:
+                _history = _history[-HISTORY_MAX:]
+    except Exception as e:
+        log.error(f"History snapshot error: {e}")
+        import traceback
+        log.error(traceback.format_exc())
+
+def _history_loop():
+    _load_history()
+    while True:
+        time.sleep(HISTORY_INTERVAL)
+        _record_snapshot()
+        _save_history()
+
+_history_thread = threading.Thread(target=_history_loop, daemon=True)
+_history_thread.start()
+
+def get_history():
+    with _history_lock:
+        return list(_history)
+
+# ── Docker info ──────────────────────────────────────────────────────
+DOCKER_HOST = "unix:///run/user/1000/docker.sock"
+
+def get_docker_info():
+    try:
+        prefix = f"DOCKER_HOST={DOCKER_HOST}"
+        containers = run_cmd(f"{prefix} docker ps -a --format '{{{{.ID}}}}|{{{{.Names}}}}|{{{{.Image}}}}|{{{{.Status}}}}|{{{{.Ports}}}}' 2>/dev/null")
+        clist = []
+        for line in containers.strip().split("\n"):
+            if not line: continue
+            parts = line.split("|")
+            if len(parts) >= 5:
+                running = "Up" in parts[3] or "running" in parts[3].lower()
+                clist.append({
+                    "id": parts[0][:12], "name": parts[1], "image": parts[2],
+                    "status": parts[3], "ports": parts[4], "running": running
+                })
+
+        images = run_cmd(f"{prefix} docker images --format '{{{{.Repository}}}}:{{{{.Tag}}}}|{{{{.Size}}}}' 2>/dev/null")
+        ilist = [{"name": l.split("|")[0], "size": l.split("|")[1] if "|" in l else ""}
+                 for l in images.strip().split("\n") if l]
+
+        return {"containers": clist, "images": ilist,
+                "running": sum(1 for c in clist if c["running"]),
+                "total": len(clist), "images_count": len(ilist)}
+    except:
+        return {"containers": [], "images": [], "running": 0, "total": 0, "images_count": 0}
+
+# ── Available updates ────────────────────────────────────────────────
+def get_updates():
+    try:
+        out = run_cmd("pacman -Qu 2>/dev/null")
+        pkgs = [l for l in out.strip().split("\n") if l] if out else []
+        return {"count": len(pkgs), "packages": pkgs[:50]}
+    except:
+        return {"count": 0, "packages": []}
+
+# ── Listening ports enhanced ─────────────────────────────────────────
+def get_listening_ports():
+    try:
+        out = run_cmd("ss -tlnp4 2>/dev/null")
+        ports = []
+        for line in out.strip().split("\n")[1:]:
+            parts = line.split()
+            if len(parts) >= 4:
+                addr = parts[3]
+                proc = parts[5] if len(parts) > 5 else ""
+                port = addr.rsplit(":", 1)[-1]
+                ports.append({"address": addr, "port": port, "process": proc})
+        return ports
+    except:
+        return []
+
 # ── Build metrics ────────────────────────────────────────────────────
 
 def get_system_metrics():
@@ -566,6 +704,9 @@ def get_system_metrics():
         "services": get_services(),
         "connections": get_connections(),
         "processes": get_processes(),
+        "docker": get_docker_info(),
+        "updates": get_updates(),
+        "ports": get_listening_ports(),
     }
     
     # GeoIP lookups en paralelo para conexiones públicas
@@ -665,6 +806,18 @@ class APIHandler(BaseHTTPRequestHandler):
                 }
             }
             self.send_json(200, health)
+        
+        elif parsed.path == "/api/history":
+            self.send_json(200, get_history())
+        
+        elif parsed.path == "/api/docker":
+            self.send_json(200, get_docker_info())
+        
+        elif parsed.path == "/api/updates":
+            self.send_json(200, get_updates())
+        
+        elif parsed.path == "/api/ports":
+            self.send_json(200, get_listening_ports())
         
         else:
             self.send_json(404, {"error": "Not found"})

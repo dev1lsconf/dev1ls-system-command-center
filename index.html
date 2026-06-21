@@ -3,21 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>dev1ls System Command Center v2.0</title>
+<title>System Command Center v2.0</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
+:root{--bg:#0a0a0a;--fg:#00ff41;--card-bg:#0d1117;--border:#1b2430;--dim:#008f11;--bright:#39ff14;--red:#ff0040;--yellow:#f0e130;--glow:rgba(0,255,65,0.3)}
+body.light{--bg:#f5f5f5;--fg:#222;--card-bg:#fff;--border:#ddd;--dim:#666;--bright:#006600;--red:#cc0000;--yellow:#cc9900;--glow:rgba(0,102,0,0.1)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0a0a;color:#00ff41;font-family:"Courier New",monospace;min-height:100vh}
-.header{padding:18px 28px;border-bottom:1px solid #1b2430;background:#0d1117;display:flex;justify-content:space-between;align-items:center}
-.header h1{font-size:2rem;color:#00ff41;text-shadow:0 0 10px #008f11}
-.header h1::before{content:"root@dev1ls:~$ ";color:#008f11;font-size:1.2rem}
+body{background:var(--bg);color:var(--fg);font-family:"Courier New",monospace;min-height:100vh;transition:background .3s,color .3s}
+.header{padding:18px 28px;border-bottom:1px solid var(--border);background:var(--card-bg);display:flex;justify-content:space-between;align-items:center;transition:background .3s}
+.header h1{font-size:2rem;color:var(--fg);text-shadow:0 0 10px var(--dim)}
+.header h1::before{content:"$ ";color:var(--dim);font-size:1.2rem}
+.header-actions{display:flex;gap:12px;align-items:center}
+.theme-btn{background:none;border:1px solid var(--border);color:var(--dim);font-size:1.2rem;cursor:pointer;padding:4px 10px;border-radius:3px;font-family:inherit}
+.theme-btn:hover{color:var(--fg);border-color:var(--fg)}
 .status{display:flex;gap:15px;align-items:center}
-.status-dot{width:10px;height:10px;border-radius:50%;background:#00ff41;box-shadow:0 0 8px #00ff41;animation:pulse 1.5s infinite}
-.status-text{font-size:1.2rem;color:#00ff41}
-.last-update{font-size:1rem;color:#008f11}
+.status-dot{width:10px;height:10px;border-radius:50%;background:var(--bright);box-shadow:0 0 8px var(--bright);animation:pulse 1.5s infinite}
+.status-text{font-size:1.2rem;color:var(--fg)}
+.last-update{font-size:1rem;color:var(--dim)}
 .dashboard{padding:15px;display:grid;grid-template-columns:repeat(12,1fr);gap:12px;max-width:1920px;margin:0 auto}
-.card{background:#0d1117;border:1px solid #1b2430;border-radius:4px;padding:18px}
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:18px;transition:background .3s}
 .card-title{font-size:1.1rem;font-weight:700;color:#00ff41;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1b2430;padding-bottom:8px}
 .card-title::before{content:">";color:#39ff14;margin-right:8px}
 .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
@@ -38,16 +45,29 @@ body{background:#0a0a0a;color:#00ff41;font-family:"Courier New",monospace;min-he
 .svc-badge{padding:2px 8px;font-size:0.8rem;border:1px solid;margin-right:4px;margin-bottom:4px;display:inline-block}
 .svc-badge.active{background:rgba(0,255,65,0.1);color:#00ff41;border-color:#008f11}
 .svc-badge.inactive{background:rgba(255,0,64,0.1);color:#ff0040;border-color:#ff0040}
+.chart-container{width:100%;height:200px}
+.port-item{padding:3px 0;font-size:0.85rem;border-bottom:1px solid rgba(0,255,65,0.05)}
+.docker-item{padding:6px 0;border-bottom:1px solid rgba(0,255,65,0.05);font-size:0.85rem}
+.update-item{padding:2px 0;font-size:0.8rem;color:var(--dim)}
+.topology-svg{width:100%;height:300px;background:transparent}
+.topology-svg text{fill:var(--dim);font-size:11px;font-family:"Courier New",monospace}
+.topology-svg .link{stroke:var(--border);stroke-width:2}
+.topology-svg .node circle{fill:var(--card-bg);stroke:var(--bright);stroke-width:2}
+.topology-svg .node.root circle{fill:var(--bright);stroke:var(--fg)}
+.topology-svg .node.root text{fill:var(--bright);font-weight:700}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>dev1ls System Command Center</h1>
-  <div class="status">
-    <div class="status-dot" id="statusDot"></div>
-    <span class="status-text" id="statusText">LOADING</span>
-    <span class="last-update" id="lastUpdate">--</span>
+  <h1>System Command Center</h1>
+  <div class="header-actions">
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">LOADING</span>
+      <span class="last-update" id="lastUpdate">--</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" title="Toggle theme">&#9790;</button>
   </div>
 </div>
 <div class="dashboard">
@@ -125,14 +145,71 @@ body{background:#0a0a0a;color:#00ff41;font-family:"Courier New",monospace;min-he
     <div class="card-title">GEO MAP</div>
     <div id="geoMap" style="height:400px;border-radius:4px"></div>
   </div>
+  <div class="card col-4">
+    <div class="card-title">DOCKER</div>
+    <div style="margin-bottom:8px"><span class="fw-badge active" id="dockerRunning">0</span> running · <span class="fw-badge active" id="dockerTotal">0</span> total · <span class="fw-badge active" id="dockerImages">0</span> images</div>
+    <div id="dockerList" class="conn-list" style="max-height:200px">loading...</div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">UPDATES</div>
+    <div style="margin-bottom:8px"><span class="fw-badge active" id="updateCount">0</span> packages available</div>
+    <div id="updateList" class="conn-list" style="max-height:200px">loading...</div>
+  </div>
+  <div class="card col-4">
+    <div class="card-title">LISTENING PORTS</div>
+    <div id="portList" class="conn-list" style="max-height:240px">loading...</div>
+  </div>
+  <div class="card col-6">
+    <div class="card-title">HISTORY (CPU)</div>
+    <div class="chart-container"><canvas id="cpuChart"></canvas></div>
+  </div>
+  <div class="card col-6">
+    <div class="card-title">HISTORY (MEM)</div>
+    <div class="chart-container"><canvas id="memChart"></canvas></div>
+  </div>
+  <div class="card col-12">
+    <div class="card-title">NETWORK TOPOLOGY</div>
+    <svg id="topoSvg" class="topology-svg"></svg>
+  </div>
 </div>
 
 <script>
 var API_URL="";
+var cpuChart=null,memChart=null;
+var topoRendered=false;
+var lastAlerts=[];
+var notifEnabled=("Notification" in window);
 
 function formatBytes(b){if(!b||b===0)return"0 B";var k=1024,sizes=["B","KB","MB","GB"];var i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+" "+sizes[i]}
 function getColor(p){return p<50?"green":p<80?"yellow":"red"}
+function getRootStyle(){return getComputedStyle(document.documentElement)}
 
+// ── Theme toggle ────────────────────────────────────────────────────
+function toggleTheme(){
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme",document.body.classList.contains("light")?"light":"dark");
+}
+if(localStorage.getItem("theme")==="light")document.body.classList.add("light");
+document.getElementById("themeBtn").onclick=toggleTheme;
+
+// ── Desktop notifications ──────────────────────────────────────────
+function maybeNotify(title,body){
+  if(!notifEnabled)return;
+  if(Notification.permission==="granted"){new Notification(title,{body:body})}
+  else if(Notification.permission!=="denied"){Notification.requestPermission()}
+}
+
+function checkNewAlerts(alerts){
+  var current=alerts.map(function(a){return a.line});
+  for(var i=0;i<current.length;i++){
+    if(lastAlerts.indexOf(current[i])===-1){
+      maybeNotify("ALERT: "+alerts[i].source,current[i].substring(0,120));
+    }
+  }
+  lastAlerts=current.slice(-100);
+}
+
+// ── Main data load ─────────────────────────────────────────────────
 async function loadData(){
   try{
     var r=await fetch("/api/metrics");
@@ -195,6 +272,10 @@ async function loadData(){
     loadConnections(d);
     loadBanned(d);
     updateMap(d);
+    loadDocker(d);
+    loadUpdates(d);
+    loadPorts(d);
+    renderTopology(d);
   }catch(e){
     document.getElementById("statusDot").style.background="#ff0040";
     document.getElementById("statusText").textContent="ERROR";
@@ -207,6 +288,7 @@ async function loadAlerts(){
     var r=await fetch("/api/logs?lines=50");
     var j=await r.json();
     var alerts=j.alerts||[];
+    checkNewAlerts(alerts);
     var al="";
     for(var i=Math.max(0,alerts.length-15);i<alerts.length;i++){
       var cls="info";
@@ -220,6 +302,129 @@ async function loadAlerts(){
   }catch(e){}
 }
 
+// ── Docker ─────────────────────────────────────────────────────────
+function loadDocker(d){
+  var dk=d.docker||{};
+  document.getElementById("dockerRunning").textContent=dk.running||0;
+  document.getElementById("dockerTotal").textContent=dk.total||0;
+  document.getElementById("dockerImages").textContent=dk.images_count||0;
+  var containers=dk.containers||[];
+  var html="";
+  for(var i=0;i<containers.length;i++){
+    var c=containers[i];
+    var s=c.running?"color:#00ff41":"color:#ff0040";
+    html+='<div class="docker-item" style="'+s+'"><b>'+c.name+'</b> ['+c.id+']<br><span style="color:var(--dim)">'+c.image+' · '+c.status+'</span></div>';
+  }
+  document.getElementById("dockerList").innerHTML=html||'<div class="metric-label">No containers</div>';
+}
+
+// ── Updates ────────────────────────────────────────────────────────
+function loadUpdates(d){
+  var up=d.updates||{};
+  document.getElementById("updateCount").textContent=up.count||0;
+  pkgs=up.packages||[];
+  var html="";
+  for(var i=0;i<pkgs.length;i++){html+='<div class="update-item">'+pkgs[i]+'</div>'}
+  document.getElementById("updateList").innerHTML=html||'<div class="metric-label" style="color:var(--bright)">System up to date</div>';
+}
+
+// ── Ports ──────────────────────────────────────────────────────────
+function loadPorts(d){
+  var ports=d.ports||[];
+  var html="";
+  for(var i=0;i<ports.length;i++){
+    var p=ports[i];
+    html+='<div class="port-item"><b>:'+p.port+'</b> '+p.address+' <span style="color:var(--dim)">'+p.process+'</span></div>';
+  }
+  document.getElementById("portList").innerHTML=html||'<div class="metric-label">No listening ports</div>';
+}
+
+// ── History charts ─────────────────────────────────────────────────
+async function loadHistory(){
+  try{
+    var r=await fetch("/api/history");
+    var pts=await r.json();
+    if(!pts||!pts.length)return;
+    var labels=pts.map(function(p){var d=new Date(p.t*1000);return d.getHours()+":"+String(d.getMinutes()).padStart(2,"0")});
+    var cpuVals=pts.map(function(p){return p.cpu});
+    var memVals=pts.map(function(p){return p.mem});
+
+    if(!cpuChart){
+      cpuChart=new Chart(document.getElementById("cpuChart"),{
+        type:"line",data:{labels:labels,datasets:[{
+          label:"CPU %",data:cpuVals,borderColor:"#00ff41",backgroundColor:"rgba(0,255,65,0.1)",
+          fill:true,tension:0.3,pointRadius:0
+        }]},options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{display:true,grid:{color:"rgba(0,255,65,0.05)"},ticks:{color:"#008f11",maxTicksLimit:10}},
+                  y:{display:true,grid:{color:"rgba(0,255,65,0.05)"},ticks:{color:"#008f11"},min:0,max:100}}
+        }
+      });
+    }else{
+      cpuChart.data.labels=labels;
+      cpuChart.data.datasets[0].data=cpuVals;
+      cpuChart.update();
+    }
+
+    if(!memChart){
+      memChart=new Chart(document.getElementById("memChart"),{
+        type:"line",data:{labels:labels,datasets:[{
+          label:"MEM %",data:memVals,borderColor:"#f0e130",backgroundColor:"rgba(240,225,48,0.1)",
+          fill:true,tension:0.3,pointRadius:0
+        }]},options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{x:{display:true,grid:{color:"rgba(0,255,65,0.05)"},ticks:{color:"#008f11",maxTicksLimit:10}},
+                  y:{display:true,grid:{color:"rgba(0,255,65,0.05)"},ticks:{color:"#008f11"},min:0,max:100}}
+        }
+      });
+    }else{
+      memChart.data.labels=labels;
+      memChart.data.datasets[0].data=memVals;
+      memChart.update();
+    }
+  }catch(e){}
+}
+
+// ── D3 Topology ────────────────────────────────────────────────────
+function renderTopology(d){
+  if(topoRendered)return;
+  topoRendered=true;
+  try{
+    var svg=d3.select("#topoSvg");
+    svg.selectAll("*").remove();
+    var w=document.getElementById("topoSvg").clientWidth||800;
+    var h=300;
+    svg.attr("viewBox","0 0 "+w+" "+h);
+
+    var hosts=d.services||[];
+    var nodes=[{id:"HOST",group:0}];
+    var links=[];
+    var ports=d.ports||[];
+    for(var i=0;i<hosts.length;i++){
+      var hid=hosts[i].name.toUpperCase();
+      nodes.push({id:hid,group:1,status:hosts[i].active?"up":"down"});
+      links.push({source:"HOST",target:hid});
+    }
+    for(var i=0;i<Math.min(ports.length,5);i++){
+      var pid=":"+ports[i].port;
+      if(!nodes.find(function(n){return n.id===pid})){nodes.push({id:pid,group:2});links.push({source:"HOST",target:pid})}
+    }
+
+    var sim=d3.forceSimulation(nodes)
+      .force("link",d3.forceLink(links).id(function(d){return d.id}).distance(80))
+      .force("charge",d3.forceManyBody().strength(-300))
+      .force("center",d3.forceCenter(w/2,h/2))
+      .on("end",function(){
+        var link=svg.append("g").selectAll("line").data(links).enter().append("line").attr("class","link");
+        var node=svg.append("g").selectAll("g").data(nodes).enter().append("g").attr("class",function(d){return"node"+(d.group===0?" root":"")});
+        node.append("circle").attr("r",function(d){return d.group===0?12:d.group===1?8:5});
+        node.append("text").attr("dy",function(d){return d.group===0?20:15}).attr("text-anchor","middle").text(function(d){return d.id});
+        node.attr("transform",function(d){return"translate("+d.x+","+d.y+")"});
+      });
+  }catch(e){}
+}
+
+// ── Connections table ──────────────────────────────────────────────
 function loadConnections(d){
   var mapped=d.connections&&d.connections.mapped||[];
   var priv=d.connections&&d.connections.private_sample||[];
@@ -228,7 +433,7 @@ function loadConnections(d){
     html='<div class="metric-label">No connections</div>';
   }else{
     html='<table style="width:100%;border-collapse:collapse">';
-    html+='<tr style="border-bottom:1px solid #1b2430;color:#008f11;text-transform:uppercase;font-size:0.75rem">';
+    html+='<tr style="border-bottom:1px solid var(--border);color:var(--dim);text-transform:uppercase;font-size:0.75rem">';
     html+='<th style="text-align:left;padding:4px">IP</th><th style="text-align:left;padding:4px">Location</th><th style="text-align:left;padding:4px">ISP</th><th style="text-align:left;padding:4px">Peer</th><th style="text-align:left;padding:4px">SSH</th></tr>';
     for(var i=0;i<mapped.length;i++){
       var c=mapped[i];
@@ -243,7 +448,7 @@ function loadConnections(d){
       html+='<td style="padding:4px;font-weight:700">'+(isSsh?'[SSH]':'')+'</td></tr>';
     }
     if(priv.length>0){
-      html+='<tr style="border-bottom:1px solid rgba(0,255,65,0.05);color:#008f11">';
+      html+='<tr style="border-bottom:1px solid rgba(0,255,65,0.05);color:var(--dim)">';
       html+='<td style="padding:4px" colspan="5"><i>'+priv.length+' private connection(s)</i></td></tr>';
     }
     html+='</table>';
@@ -257,7 +462,7 @@ function loadBanned(d){
   var jails=f2b.jails||[];
   var html="";
   if(banned.length===0){
-    html='<div class="metric-label" style="color:#00ff41">No banned IPs</div>';
+    html='<div class="metric-label" style="color:var(--bright)">No banned IPs</div>';
   }else{
     for(var i=0;i<banned.length;i++){
       var jailName="";
@@ -269,7 +474,7 @@ function loadBanned(d){
       }
       var label=jailName?'['+jailName+']':'';
       html+='<div class="conn-item" style="color:#ff0040;border-color:rgba(255,0,64,0.2)">';
-      html+='<b>'+banned[i]+'</b> <span style="color:#008f11">'+label+'</span></div>';
+      html+='<b>'+banned[i]+'</b> <span style="color:var(--dim)">'+label+'</span></div>';
     }
   }
   document.getElementById("bannedList").innerHTML=html;
@@ -291,7 +496,6 @@ function updateMap(d){
   for(var i=0;i<markers.length;i++)map.removeLayer(markers[i]);
   markers=[];
   var mapped=d.connections&&d.connections.mapped||[];
-  var priv=d.connections&&d.connections.private_sample||[];
   var bounds=[];
   for(var i=0;i<mapped.length;i++){
     var c=mapped[i];
@@ -316,10 +520,24 @@ function updateMap(d){
   }
 }
 
+// ── SSE / Bootstrap ────────────────────────────────────────────────
+function setupSSE(){
+  var es=new EventSource("/api/events");
+  es.onmessage=function(e){
+    try{
+      var d=JSON.parse(e.data);
+      if(d.metrics)loadData();
+      if(d.alerts)loadAlerts();
+    }catch(e2){}
+  };
+}
+
 loadData();
 loadAlerts();
+loadHistory();
 setInterval(loadData,3000);
 setInterval(loadAlerts,10000);
+setInterval(loadHistory,30000);
 </script>
 </body>
 </html>

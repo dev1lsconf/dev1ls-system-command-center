@@ -8,6 +8,7 @@ $HOME/
 modelo.html
 static_panel.html
 pending_blocks.json
+history.json
 web-panel.log
 __pycache__/
 *.pyc
