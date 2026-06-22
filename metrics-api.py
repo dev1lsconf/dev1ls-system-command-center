@@ -635,11 +635,15 @@ def get_history():
         return list(_history)
 
 # ── Docker info ──────────────────────────────────────────────────────
-DOCKER_HOST = "unix:///run/user/1000/docker.sock"
+DOCKER_SOCKET = "/var/run/docker.sock"
 
 def get_docker_info():
     try:
-        prefix = f"DOCKER_HOST={DOCKER_HOST}"
+        # Check if docker socket exists
+        if not os.path.exists(DOCKER_SOCKET):
+            return {"containers": [], "images": [], "running": 0, "total": 0, "images_count": 0, "error": "Docker socket not found"}
+        # Use sudo for docker access (group membership requires re-login)
+        prefix = "sudo"
         containers = run_cmd(f"{prefix} docker ps -a --format '{{{{.ID}}}}|{{{{.Names}}}}|{{{{.Image}}}}|{{{{.Status}}}}|{{{{.Ports}}}}' 2>/dev/null")
         clist = []
         for line in containers.strip().split("\n"):

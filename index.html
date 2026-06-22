@@ -49,12 +49,49 @@ body{background:var(--bg);color:var(--fg);font-family:"Courier New",monospace;mi
 .port-item{padding:3px 0;font-size:0.85rem;border-bottom:1px solid rgba(0,255,65,0.05)}
 .docker-item{padding:6px 0;border-bottom:1px solid rgba(0,255,65,0.05);font-size:0.85rem}
 .update-item{padding:2px 0;font-size:0.8rem;color:var(--dim)}
-.topology-svg{width:100%;height:300px;background:transparent}
-.topology-svg text{fill:var(--dim);font-size:11px;font-family:"Courier New",monospace}
-.topology-svg .link{stroke:var(--border);stroke-width:2}
-.topology-svg .node circle{fill:var(--card-bg);stroke:var(--bright);stroke-width:2}
-.topology-svg .node.root circle{fill:var(--bright);stroke:var(--fg)}
-.topology-svg .node.root text{fill:var(--bright);font-weight:700}
+.topology-svg{width:100%;height:400px;background:transparent;cursor:pointer}
+.topology-svg text{fill:var(--dim);font-size:9px;font-family:"Courier New",monospace;pointer-events:none}
+.topology-svg .link{stroke:var(--border);stroke-width:2;stroke-opacity:0.5;transition:stroke .2s,stroke-width .2s,stroke-opacity .2s}
+.topology-svg .link:hover{stroke:var(--bright);stroke-width:4;stroke-opacity:1}
+.topology-svg .link.ssh{stroke:var(--red);stroke-dasharray:6,3}
+.topology-svg .link.local{stroke:var(--yellow);stroke-opacity:0.3}
+.topology-svg .link.internet{stroke:var(--bright);stroke-opacity:0.6}
+.topology-svg .link-label{fill:var(--dim);font-size:8px;font-family:"Courier New",monospace;pointer-events:none}
+.topology-svg .node circle{fill:var(--card-bg);stroke:var(--bright);stroke-width:2;transition:fill .2s,r .2s,stroke .2s;cursor:pointer}
+.topology-svg .node circle:hover{fill:rgba(0,255,65,0.2);stroke-width:3}
+.topology-svg .node.root circle{fill:var(--bright);stroke:var(--fg);filter:url(#glow)}
+.topology-svg .node.root text{fill:var(--bright);font-weight:700;font-size:11px}
+.topology-svg .node.remote circle{stroke:var(--dim);fill:rgba(0,255,65,0.05)}
+.topology-svg .node.remote text{fill:var(--dim)}
+.topology-svg .node.service circle{stroke:var(--yellow);fill:rgba(240,225,48,0.05)}
+.topology-svg .node.service text{fill:var(--yellow);font-size:8px}
+.topology-svg .node.port circle{stroke:#00bfff;fill:rgba(0,191,255,0.05)}
+.topology-svg .node.port text{fill:#00bfff;font-size:8px}
+.topo-modal{position:fixed;background:rgba(13,17,23,0.95);border:1px solid var(--bright);border-radius:8px;padding:0;font-size:0.85rem;color:var(--fg);pointer-events:none;min-width:260px;max-width:360px;z-index:9999;box-shadow:0 0 40px rgba(0,255,65,0.25),0 4px 20px rgba(0,0,0,0.6);display:none;line-height:1.5;backdrop-filter:blur(8px);overflow:hidden}
+.topo-modal .tm-hdr{color:var(--bright);font-weight:700;padding:10px 14px 8px 14px;border-bottom:1px solid rgba(0,255,65,0.2);background:rgba(0,255,65,0.05);display:flex;align-items:center;gap:8px;text-shadow:0 0 10px rgba(0,255,65,0.4);font-size:0.95rem}
+.topo-modal .tm-hdr .tm-icon{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.topo-modal .tm-hdr .tm-icon.host{background:var(--bright);box-shadow:0 0 8px var(--bright)}
+.topo-modal .tm-hdr .tm-icon.remote{background:var(--dim);border:1px solid var(--bright)}
+.topo-modal .tm-hdr .tm-icon.service{background:var(--yellow)}
+.topo-modal .tm-hdr .tm-icon.port{background:#00bfff}
+.topo-modal .tm-body{padding:10px 14px 12px 14px}
+.topo-modal .tm-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(0,255,65,0.05)}
+.topo-modal .tm-row:last-child{border-bottom:none}
+.topo-modal .tm-label{color:var(--dim);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px}
+.topo-modal .tm-value{color:var(--fg);font-weight:700;font-size:0.85rem}
+.topo-modal .tm-value.ssh{color:var(--red);text-shadow:0 0 8px rgba(255,0,64,0.4)}
+.topo-modal .tm-value.up{color:var(--bright)}
+.topo-modal .tm-value.down{color:var(--red)}
+.topo-modal .tm-ports{color:var(--dim);font-size:0.8rem;max-height:60px;overflow-y:auto}
+.topo-modal .tm-ports span{display:inline-block;background:rgba(0,255,65,0.1);border:1px solid rgba(0,255,65,0.2);border-radius:3px;padding:1px 6px;margin:1px 2px;font-size:0.75rem;color:var(--fg)}
+.topo-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:0.75rem}
+.topo-legend-item{display:flex;align-items:center;gap:5px}
+.topo-legend-line{width:24px;height:2px;border-radius:1px}
+.topo-legend-line.ssh{height:0;border-top:2px dashed var(--red)}
+.topo-legend-line.local{background:var(--yellow);opacity:0.5}
+.topo-legend-line.internet{background:var(--bright);opacity:0.7}
+.topo-legend-line.service{background:var(--yellow)}
+.topo-legend-line.port{background:#00bfff}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 </style>
 </head>
@@ -169,14 +206,29 @@ body{background:var(--bg);color:var(--fg);font-family:"Courier New",monospace;mi
   </div>
   <div class="card col-12">
     <div class="card-title">NETWORK TOPOLOGY</div>
-    <svg id="topoSvg" class="topology-svg"></svg>
+    <svg id="topoSvg" class="topology-svg">
+      <defs>
+        <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <marker id="arrow-remote" viewBox="0 -5 10 10" refX="20" refY="0" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,-5L10,0L0,5" fill="var(--bright)" opacity="0.5"/></marker>
+        <marker id="arrow-ssh" viewBox="0 -5 10 10" refX="20" refY="0" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,-5L10,0L0,5" fill="var(--red)" opacity="0.7"/></marker>
+        <marker id="arrow-local" viewBox="0 -5 10 10" refX="20" refY="0" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,-5L10,0L0,5" fill="var(--yellow)" opacity="0.4"/></marker>
+      </defs>
+    </svg>
+    <div id="topoModal" class="topo-modal"></div>
+    <div class="topo-legend">
+      <span class="topo-legend-item"><span class="topo-legend-line internet"></span> Internet</span>
+      <span class="topo-legend-item"><span class="topo-legend-line ssh"></span> SSH</span>
+      <span class="topo-legend-item"><span class="topo-legend-line local"></span> Local</span>
+      <span class="topo-legend-item"><span class="topo-legend-line service"></span> Service</span>
+      <span class="topo-legend-item"><span class="topo-legend-line port"></span> Port</span>
+    </div>
   </div>
 </div>
 
 <script>
 var API_URL="";
 var cpuChart=null,memChart=null;
-var topoRendered=false;
+var topoRenderCounter=0;
 var lastAlerts=[];
 var notifEnabled=("Notification" in window);
 
@@ -387,40 +439,252 @@ async function loadHistory(){
 
 // ── D3 Topology ────────────────────────────────────────────────────
 function renderTopology(d){
-  if(topoRendered)return;
-  topoRendered=true;
   try{
+    var el=document.getElementById("topoSvg");
     var svg=d3.select("#topoSvg");
-    svg.selectAll("*").remove();
-    var w=document.getElementById("topoSvg").clientWidth||800;
-    var h=300;
+    svg.selectAll("g.topo-layer").remove();
+    var w=el.clientWidth||800;
+    var h=400;
     svg.attr("viewBox","0 0 "+w+" "+h);
 
-    var hosts=d.services||[];
-    var nodes=[{id:"HOST",group:0}];
+    var root="HOST";
+    var nodes=[];
     var links=[];
-    var ports=d.ports||[];
-    for(var i=0;i<hosts.length;i++){
-      var hid=hosts[i].name.toUpperCase();
-      nodes.push({id:hid,group:1,status:hosts[i].active?"up":"down"});
-      links.push({source:"HOST",target:hid});
-    }
-    for(var i=0;i<Math.min(ports.length,5);i++){
-      var pid=":"+ports[i].port;
-      if(!nodes.find(function(n){return n.id===pid})){nodes.push({id:pid,group:2});links.push({source:"HOST",target:pid})}
+    var usedIds={};
+
+    function addNode(id,group,label,meta){
+      if(usedIds[id])return;
+      usedIds[id]=true;
+      nodes.push({id:id,group:group,label:label||id,meta:meta||{}});
     }
 
+    var totalConns=d.connections&&d.connections.established?d.connections.established.length:0;
+    addNode(root,0,"HOST",{type:"host",totalConns:totalConns});
+
+    var hosts=d.services||[];
+    for(var i=0;i<hosts.length;i++){
+      var hh=hosts[i];
+      var sid=hh.name.toUpperCase().replace(/[^A-Z0-9]/g,"_").substring(0,12);
+      addNode(sid,1,hh.name,{type:"service",status:hh.active?"up":"down"});
+      links.push({source:root,target:sid,type:"service",label:hh.active?"up":"down"});
+    }
+
+    var ports=d.ports||[];
+    for(var i=0;i<Math.min(ports.length,10);i++){
+      var pid="P"+ports[i].port;
+      addNode(pid,3,":"+ports[i].port,{type:"port",port:ports[i].port});
+      links.push({source:root,target:pid,type:"port",label:ports[i].port});
+    }
+
+    var conns=d.connections&&d.connections.established||[];
+    var connByRemote={};
+    for(var i=0;i<conns.length;i++){
+      var c=conns[i];
+      var rip=c.peer.split(":")[0];
+      if(!connByRemote[rip])connByRemote[rip]=[];
+      connByRemote[rip].push(c);
+    }
+
+    var remoteKeys=Object.keys(connByRemote);
+    if(remoteKeys.length>25)remoteKeys=remoteKeys.slice(0,25);
+
+    for(var ri=0;ri<remoteKeys.length;ri++){
+      var rip=remoteKeys[ri];
+      var rconns=connByRemote[rip];
+      var rid="R"+ri;
+      var isSSH=false;
+      var ports_used={};
+      for(var j=0;j<rconns.length;j++){
+        var pp=rconns[j].peer.split(":").pop();
+        if(pp==="22")isSSH=true;
+        ports_used[pp]=true;
+      }
+      var label=rip;
+      if(rip.length>14)label=rip.substring(0,13)+"…";
+      var isLocal=rip.indexOf("127.")===0||rip.indexOf("172.")===0||rip.indexOf("192.168")===0||rip.indexOf("10.")===0;
+      var ltype=isSSH?"ssh":isLocal?"local":"internet";
+      addNode(rid,2,label,{type:"remote",ip:rip,count:rconns.length,ssh:isSSH,ports:Object.keys(ports_used).join(",")});
+      var usedPorts={};
+      for(var j=0;j<rconns.length;j++){
+        var lp=rconns[j].local.split(":").pop();
+        var pp=rconns[j].peer.split(":").pop();
+        var pkey=lp+"-"+pp;
+        if(usedPorts[pkey])continue;
+        usedPorts[pkey]=true;
+        links.push({
+          source:root,target:rid,type:ltype,
+          localPort:lp,peerPort:pp,
+          localFull:rconns[j].local,peerFull:rconns[j].peer,
+          label:lp+"→"+pp,multi:rconns.length>1
+        });
+      }
+    }
+
+    var linkLayer=svg.append("g").attr("class","topo-layer");
+    var linkLabelLayer=svg.append("g").attr("class","topo-layer");
+    var nodeLayer=svg.append("g").attr("class","topo-layer");
+
     var sim=d3.forceSimulation(nodes)
-      .force("link",d3.forceLink(links).id(function(d){return d.id}).distance(80))
-      .force("charge",d3.forceManyBody().strength(-300))
+      .force("link",d3.forceLink(links).id(function(d){return d.id}).distance(function(l){
+        if(l.type==="service"||l.type==="port")return 55+(l.type==="port"?25:0);
+        if(l.type==="local")return 95;
+        return 140;
+      }).strength(function(l){
+        if(l.type==="service"||l.type==="port")return 0.4;
+        return 0.15;
+      }))
+      .force("charge",d3.forceManyBody().strength(function(d){
+        return d.group===0?-700:d.group===1?-250:d.group===3?-120:-80;
+      }))
       .force("center",d3.forceCenter(w/2,h/2))
-      .on("end",function(){
-        var link=svg.append("g").selectAll("line").data(links).enter().append("line").attr("class","link");
-        var node=svg.append("g").selectAll("g").data(nodes).enter().append("g").attr("class",function(d){return"node"+(d.group===0?" root":"")});
-        node.append("circle").attr("r",function(d){return d.group===0?12:d.group===1?8:5});
-        node.append("text").attr("dy",function(d){return d.group===0?20:15}).attr("text-anchor","middle").text(function(d){return d.id});
-        node.attr("transform",function(d){return"translate("+d.x+","+d.y+")"});
-      });
+      .force("collision",d3.forceCollide().radius(function(d){
+        return d.group===0?30:d.group===1?18:d.group===3?12:10;
+      }))
+      .alphaDecay(0.03)
+      .on("tick",function(){
+        linkLayer.selectAll("line").remove();
+        linkLayer.selectAll("line").data(links).enter().append("line")
+          .attr("x1",function(l){return l.source.x})
+          .attr("y1",function(l){return l.source.y})
+          .attr("x2",function(l){return l.target.x})
+          .attr("y2",function(l){return l.target.y})
+          .attr("class",function(l){return"link"+(l.type==="ssh"?" ssh":"")+(l.type==="local"?" local":"")+(l.type==="internet"?" internet":"")})
+          .attr("stroke-width",function(l){
+            if(l.type==="ssh")return 3;
+            if(l.type==="internet")return 2;
+            return 1.5;
+          })
+          .attr("marker-end",function(l){
+            if(l.type==="ssh")return"url(#arrow-ssh)";
+            if(l.type==="local")return"url(#arrow-local)";
+            return"url(#arrow-remote)";
+          });
+
+        linkLabelLayer.selectAll("text").remove();
+        linkLabelLayer.selectAll("text").data(links).enter().append("text")
+          .attr("class","link-label")
+          .attr("x",function(l){return(l.source.x+l.target.x)/2})
+          .attr("y",function(l){return(l.source.y+l.target.y)/2-4})
+          .text(function(l){return l.label});
+
+        nodeLayer.selectAll("g").remove();
+        var ng=nodeLayer.selectAll("g").data(nodes).enter().append("g")
+          .attr("class",function(d){
+            var cls="node";
+            if(d.group===0)cls+=" root";
+            else if(d.group===2)cls+=" remote";
+            else if(d.group===3)cls+=" port";
+            else cls+=" service";
+            return cls;
+          })
+          .attr("transform",function(d){return"translate("+d.x+","+d.y+")"});
+
+        ng.append("circle")
+          .attr("r",function(d){return d.group===0?16:d.group===1?7:d.group===3?5:6})
+          .on("mouseover",function(ev,d){
+            var el=document.getElementById("topoModal");
+            var html="";
+            if(d.meta.type==="host"){
+              html="<div class='tm-hdr'><span class='tm-icon host'></span> HOST</div><div class='tm-body'>";
+              html+="<div class='tm-row'><span class='tm-label'>SYSTEM</span><span class='tm-value'>Local</span></div>";
+              html+="<div class='tm-row'><span class='tm-label'>ACTIVE CONNS</span><span class='tm-value'>"+(d.meta.totalConns||0)+"</span></div></div>";
+            }else if(d.meta.type==="service"){
+              var st=d.meta.status==="up"?"up":"down";
+              html="<div class='tm-hdr'><span class='tm-icon service'></span> SERVICE</div><div class='tm-body'>";
+              html+="<div class='tm-row'><span class='tm-label'>NAME</span><span class='tm-value'>"+d.label+"</span></div>";
+              html+="<div class='tm-row'><span class='tm-label'>STATUS</span><span class='tm-value "+st+"'>"+(d.meta.status==="up"?"ACTIVE":"DOWN")+"</span></div></div>";
+            }else if(d.meta.type==="port"){
+              html="<div class='tm-hdr'><span class='tm-icon port'></span> LISTENING PORT</div><div class='tm-body'>";
+              html+="<div class='tm-row'><span class='tm-label'>PORT</span><span class='tm-value'>:"+d.meta.port+"</span></div>";
+              html+="</div>";
+            }else if(d.meta.type==="remote"){
+              html="<div class='tm-hdr'><span class='tm-icon remote'></span> REMOTE HOST</div><div class='tm-body'>";
+              html+="<div class='tm-row'><span class='tm-label'>IP</span><span class='tm-value'>"+d.meta.ip+"</span></div>";
+              html+="<div class='tm-row'><span class='tm-label'>CONNECTIONS</span><span class='tm-value'>"+d.meta.count+"</span></div>";
+              if(d.meta.ports){
+                var ps=d.meta.ports.split(",");
+                var phtml="";
+                for(var pi=0;pi<ps.length;pi++){phtml+="<span>"+ps[pi]+"</span>"}
+                html+="<div class='tm-row'><span class='tm-label'>PORTS</span><span class='tm-ports'>"+phtml+"</span></div>";
+              }
+              if(d.meta.ssh)html+="<div class='tm-row'><span class='tm-label'>SECURITY</span><span class='tm-value ssh'>SSH</span></div>";
+              html+="</div>";
+            }
+            el.innerHTML=html;
+            var r=el.getBoundingClientRect();
+            var left=ev.clientX+20,top=ev.clientY-20;
+            if(left+r.width>window.innerWidth)left=ev.clientX-r.width-20;
+            if(top<10)top=10;
+            if(top+r.height>window.innerHeight)top=window.innerHeight-r.height-10;
+            el.style.left=left+"px";el.style.top=top+"px";
+            el.style.display="block";
+          })
+          .on("mousemove",function(ev){
+            var el=document.getElementById("topoModal");
+            if(el.style.display==="block"){
+              var r=el.getBoundingClientRect();
+              var left=ev.clientX+20,top=ev.clientY-20;
+              if(left+r.width>window.innerWidth)left=ev.clientX-r.width-20;
+              if(top<10)top=10;
+              if(top+r.height>window.innerHeight)top=window.innerHeight-r.height-10;
+              el.style.left=left+"px";el.style.top=top+"px";
+            }
+          })
+          .on("mouseout",function(){
+            document.getElementById("topoModal").style.display="none";
+          });
+
+        ng.append("text")
+          .attr("dy",function(d){return d.group===0?24:13})
+          .attr("text-anchor","middle")
+          .text(function(d){return d.label});
+      })
+      .on("end",function(){sim.stop()});
+
+    sim.alpha(0.8).restart();
+
+    setTimeout(function(){
+      linkLayer.selectAll("line")
+        .on("mouseover",function(ev,l){
+          var el=document.getElementById("topoModal");
+          var st=l.type==="ssh"?"ssh":"";
+          var typeLabel=l.type==="ssh"?"SSH":l.type==="local"?"LOCAL":"INTERNET";
+          var localIP=l.localFull?l.localFull.split(":").slice(0,-1).join(":"):"--";
+          var localPort=l.localFull?l.localFull.split(":").pop():"--";
+          var peerIP=l.peerFull?l.peerFull.split(":").slice(0,-1).join(":"):"--";
+          var peerPort=l.peerFull?l.peerFull.split(":").pop():"--";
+          var html="<div class='tm-hdr'><span class='tm-icon' style='background:"+(l.type==="ssh"?"#ff0040":l.type==="local"?"#f0e130":"var(--bright)")+"'></span> CONNECTION</div><div class='tm-body'>";
+          html+="<div class='tm-row'><span class='tm-label'>TYPE</span><span class='tm-value "+st+"'>"+typeLabel+"</span></div>";
+          html+="<div class='tm-row'><span class='tm-label'>LOCAL</span><span class='tm-value'>"+localIP+"</span></div>";
+          html+="<div class='tm-row'><span class='tm-label'>LOCAL PORT</span><span class='tm-value'>"+localPort+"</span></div>";
+          html+="<div class='tm-row'><span class='tm-label'>PEER</span><span class='tm-value'>"+peerIP+"</span></div>";
+          html+="<div class='tm-row'><span class='tm-label'>PEER PORT</span><span class='tm-value'>"+peerPort+"</span></div>";
+          if(l.type==="ssh")html+="<div class='tm-row'><span class='tm-label'>SECURITY</span><span class='tm-value ssh'>SSH</span></div>";
+          html+="</div>";
+          el.innerHTML=html;
+          var r=el.getBoundingClientRect();
+          var left=ev.clientX+20,top=ev.clientY-20;
+          if(left+r.width>window.innerWidth)left=ev.clientX-r.width-20;
+          if(top<10)top=10;
+          if(top+r.height>window.innerHeight)top=window.innerHeight-r.height-10;
+          el.style.left=left+"px";el.style.top=top+"px";
+          el.style.display="block";
+        })
+        .on("mousemove",function(ev){
+          var el=document.getElementById("topoModal");
+          if(el.style.display==="block"){
+            var r=el.getBoundingClientRect();
+            var left=ev.clientX+20,top=ev.clientY-20;
+            if(left+r.width>window.innerWidth)left=ev.clientX-r.width-20;
+            if(top<10)top=10;
+            if(top+r.height>window.innerHeight)top=window.innerHeight-r.height-10;
+            el.style.left=left+"px";el.style.top=top+"px";
+          }
+        })
+        .on("mouseout",function(){
+          document.getElementById("topoModal").style.display="none";
+        });
+    },100);
   }catch(e){}
 }
 
@@ -535,7 +799,7 @@ function setupSSE(){
 loadData();
 loadAlerts();
 loadHistory();
-setInterval(loadData,3000);
+setInterval(loadData,15000);
 setInterval(loadAlerts,10000);
 setInterval(loadHistory,30000);
 </script>
